@@ -1,0 +1,24 @@
+# Build output
+build/
+*.exe
+*.exe~
+
+# Debug/test files
+*.txt
+!README.txt
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Screenshots (user data)
+screenshots/
+
+# Go
+vendor/
