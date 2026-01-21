@@ -29,7 +29,6 @@ When using CLI AI tools like Claude Code, sharing screenshots is often needed. H
 - **Visual feedback**: Dark overlay with highlighted selection area
 - **Custom crosshair cursor**: Visible on any background (white outline + red center)
 - **System tray**: Runs quietly in background
-- **Configurable hotkey**: Default `Alt+1`, fully customizable
 - **Optimized performance**: Dirty region rendering, O(n) image processing
 
 ### Installation
@@ -54,45 +53,14 @@ build.bat
 2. Press `Alt+1` to start capture
 3. **Click** on a window to capture it, or **drag** to select a custom region
 4. Screenshot saved, path copied to clipboard
-5. Paste the path in your terminal with `Ctrl+V`
+5. Paste the path in your terminal (right-click or `Ctrl+V`)
 
 #### Keyboard Shortcuts
 
 | Action | Key |
 |--------|-----|
-| Capture | `Alt+1` (default) |
+| Capture | `Alt+1` |
 | Cancel | `ESC` or Right-click |
-| Full screen | `Enter` |
-
-#### Customize Hotkey
-
-```bash
-snapcli --set-hotkey ctrl+shift+s
-snapcli --config  # Show config file path
-```
-
-#### Configuration
-
-Config file location:
-- Windows: `%APPDATA%\snapcli\config.json`
-- macOS: `~/.config/snapcli/config.json`
-
-```json
-{
-    "hotkey": {
-        "modifiers": ["alt"],
-        "key": "1"
-    },
-    "storage": {
-        "directory": "./screenshots",
-        "format": "png",
-        "quality": 90
-    },
-    "behavior": {
-        "showNotification": true
-    }
-}
-```
 
 ---
 
@@ -121,7 +89,6 @@ Config file location:
 - **视觉反馈**：暗色遮罩 + 高亮选区
 - **自定义光标**：白色轮廓 + 红色中心，任何背景下都清晰可见
 - **系统托盘**：后台静默运行
-- **自定义快捷键**：默认 `Alt+1`，可自由配置
 - **性能优化**：脏区域渲染、O(n) 图像处理
 
 ### 安装
@@ -146,45 +113,14 @@ build.bat
 2. 按 `Alt+1` 开始截图
 3. **单击**窗口直接截取该窗口，或**拖动**选择自定义区域
 4. 截图完成，路径已复制到剪贴板
-5. 在终端中 `Ctrl+V` 粘贴路径
+5. 在终端中粘贴路径（右键或 `Ctrl+V`）
 
 #### 快捷键
 
 | 操作 | 按键 |
 |------|------|
-| 截图 | `Alt+1`（默认） |
+| 截图 | `Alt+1` |
 | 取消 | `ESC` 或 鼠标右键 |
-| 全屏截图 | `Enter` |
-
-#### 自定义快捷键
-
-```bash
-snapcli --set-hotkey ctrl+shift+s
-snapcli --config  # 查看配置文件位置
-```
-
-#### 配置文件
-
-配置文件位置：
-- Windows: `%APPDATA%\snapcli\config.json`
-- macOS: `~/.config/snapcli/config.json`
-
-```json
-{
-    "hotkey": {
-        "modifiers": ["alt"],
-        "key": "1"
-    },
-    "storage": {
-        "directory": "./screenshots",
-        "format": "png",
-        "quality": 90
-    },
-    "behavior": {
-        "showNotification": true
-    }
-}
-```
 
 ---
 
