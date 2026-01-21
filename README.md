@@ -29,6 +29,7 @@ When using CLI AI tools like Claude Code, sharing screenshots is often needed. H
 - **Visual feedback**: Dark overlay with highlighted selection area
 - **Custom crosshair cursor**: Visible on any background (white outline + red center)
 - **System tray**: Runs quietly in background
+- **Portable**: Config file stored alongside exe, no installation needed
 - **Optimized performance**: Dirty region rendering, O(n) image processing
 
 ### Installation
@@ -62,6 +63,38 @@ build.bat
 | Capture | `Alt+1` |
 | Cancel | `ESC` or Right-click |
 
+### Configuration
+
+Config file `config.json` is located in the same directory as the exe.
+
+#### Change Hotkey
+
+Edit `config.json` and modify the `hotkey` section:
+
+```json
+{
+    "hotkey": {
+        "modifiers": ["alt"],
+        "key": "1"
+    }
+}
+```
+
+**Examples:**
+
+| Hotkey | Configuration |
+|--------|---------------|
+| `Alt+1` | `"modifiers": ["alt"], "key": "1"` |
+| `Ctrl+Shift+S` | `"modifiers": ["ctrl", "shift"], "key": "s"` |
+| `Alt+A` | `"modifiers": ["alt"], "key": "a"` |
+| `Ctrl+Alt+X` | `"modifiers": ["ctrl", "alt"], "key": "x"` |
+
+**Supported modifiers:** `ctrl`, `alt`, `shift`, `win`
+
+**Supported keys:** `a-z`, `0-9`, `f1-f12`
+
+After editing, restart SnapCLI for changes to take effect.
+
 ---
 
 ## 中文
@@ -89,6 +122,7 @@ build.bat
 - **视觉反馈**：暗色遮罩 + 高亮选区
 - **自定义光标**：白色轮廓 + 红色中心，任何背景下都清晰可见
 - **系统托盘**：后台静默运行
+- **便携版**：配置文件与 exe 同目录，无需安装
 - **性能优化**：脏区域渲染、O(n) 图像处理
 
 ### 安装
@@ -121,6 +155,38 @@ build.bat
 |------|------|
 | 截图 | `Alt+1` |
 | 取消 | `ESC` 或 鼠标右键 |
+
+### 配置说明
+
+配置文件 `config.json` 位于 exe 同目录下。
+
+#### 修改快捷键
+
+编辑 `config.json`，修改 `hotkey` 部分：
+
+```json
+{
+    "hotkey": {
+        "modifiers": ["alt"],
+        "key": "1"
+    }
+}
+```
+
+**示例：**
+
+| 快捷键 | 配置 |
+|--------|------|
+| `Alt+1` | `"modifiers": ["alt"], "key": "1"` |
+| `Ctrl+Shift+S` | `"modifiers": ["ctrl", "shift"], "key": "s"` |
+| `Alt+A` | `"modifiers": ["alt"], "key": "a"` |
+| `Ctrl+Alt+X` | `"modifiers": ["ctrl", "alt"], "key": "x"` |
+
+**支持的修饰键：** `ctrl`, `alt`, `shift`, `win`
+
+**支持的主键：** `a-z`, `0-9`, `f1-f12`
+
+修改后重启 SnapCLI 生效。
 
 ---
 

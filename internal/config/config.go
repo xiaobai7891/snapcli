@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 )
 
@@ -59,22 +58,14 @@ func DefaultConfig() *Config {
 	}
 }
 
-// GetConfigPath 获取配置文件路径
+// GetConfigPath 获取配置文件路径（与 exe 同目录）
 func GetConfigPath() string {
-	var configDir string
-
-	if runtime.GOOS == "windows" {
-		configDir = os.Getenv("APPDATA")
-		if configDir == "" {
-			homeDir, _ := os.UserHomeDir()
-			configDir = filepath.Join(homeDir, "AppData", "Roaming")
-		}
-	} else {
-		homeDir, _ := os.UserHomeDir()
-		configDir = filepath.Join(homeDir, ".config")
+	exePath, err := os.Executable()
+	if err != nil {
+		return "config.json"
 	}
-
-	return filepath.Join(configDir, "snapcli", "config.json")
+	exeDir := filepath.Dir(exePath)
+	return filepath.Join(exeDir, "config.json")
 }
 
 // Load 加载配置
