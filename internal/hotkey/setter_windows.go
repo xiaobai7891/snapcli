@@ -23,7 +23,7 @@ func ShowHotkeySetter(currentHotkey string) *HotkeyResult {
 	// 注意：PowerShell 中用 `n 表示换行
 	script := fmt.Sprintf(`
 Add-Type -AssemblyName Microsoft.VisualBasic
-$msg = "请输入新的快捷键组合" + [char]10 + [char]10 + "格式: 修饰键+主键" + [char]10 + "示例: ctrl+alt+s, alt+1, ctrl+shift+x" + [char]10 + [char]10 + "支持的修饰键: ctrl, alt, shift, win" + [char]10 + "支持的主键: a-z, 0-9, f1-f12"
+$msg = "请输入新的快捷键组合" + [char]10 + [char]10 + "格式: 修饰键+主键" + [char]10 + "示例: alt+1, ctrl+shift+s, alt+a" + [char]10 + [char]10 + "支持的修饰键: ctrl, alt, shift, win" + [char]10 + "支持的主键: a-z, 0-9, f1-f12"
 $result = [Microsoft.VisualBasic.Interaction]::InputBox($msg, "设置快捷键", "%s")
 Write-Output $result
 `, currentHotkey)

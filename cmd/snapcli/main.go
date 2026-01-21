@@ -31,7 +31,7 @@ var (
 
 func main() {
 	// 命令行参数
-	setHotkeyFlag := flag.String("set-hotkey", "", "设置快捷键，格式：ctrl+alt+s")
+	setHotkeyFlag := flag.String("set-hotkey", "", "设置快捷键，格式：alt+1")
 	showConfig := flag.Bool("config", false, "显示配置文件路径")
 	version := flag.Bool("version", false, "显示版本信息")
 	flag.Parse()
@@ -183,7 +183,7 @@ func openScreenshotDir() {
 }
 
 func updateHotkey(hotkeyStr string) error {
-	// 解析快捷键字符串，如 "ctrl+alt+s"
+	// 解析快捷键字符串，如 "alt+1"
 	modifiers := []string{}
 	key := ""
 

@@ -15,7 +15,7 @@ type Tray struct {
 // NewTray 创建系统托盘
 func NewTray() *Tray {
 	return &Tray{
-		hotkeyText: "Ctrl+Alt+S",
+		hotkeyText: "Alt+1",
 	}
 }
 
