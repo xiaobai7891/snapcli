@@ -3,11 +3,13 @@ package main
 import (
 	"flag"
 	"fmt"
+	"image"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 
+	"snapcli/internal/annotate"
 	"snapcli/internal/capture"
 	"snapcli/internal/clipboard"
 	"snapcli/internal/config"
@@ -61,6 +63,13 @@ func main() {
 }
 
 func run() {
+	// 初始化调试日志
+	initDebugLog()
+	debugLog("SnapCLI 启动")
+	logDPIInfo()
+
+	// DPI 感知已在 dpi_windows.go 的 init() 中设置
+
 	// 加载配置
 	var err error
 	cfg, err = config.Load()
@@ -78,6 +87,9 @@ func run() {
 
 	// 确保存储目录存在
 	cfg.EnsureStorageDir()
+
+	// 设置标注编辑器的调试日志回调
+	annotate.DebugLogFunc = debugLog
 
 	// 初始化模块
 	capturer = capture.NewCapturer()
@@ -122,12 +134,15 @@ func run() {
 }
 
 func onHotkeyPressed() {
+	debugLog("=== 开始截图 ===")
+
 	// 1. 全屏截图
 	fullscreen, err := capturer.CaptureFullScreen()
 	if err != nil {
 		notifier.Show("截图失败", err.Error())
 		return
 	}
+	debugLog("全屏截图: %dx%d, Bounds=%v", fullscreen.Bounds().Dx(), fullscreen.Bounds().Dy(), fullscreen.Bounds())
 
 	// 2. 显示选区UI
 	region, err := selector.SelectRegion(fullscreen)
@@ -138,26 +153,33 @@ func onHotkeyPressed() {
 
 	// 用户取消
 	if region == nil {
+		debugLog("用户取消选区")
 		return
 	}
+	debugLog("选区结果: X=%d, Y=%d, W=%d, H=%d", region.X, region.Y, region.Width, region.Height)
 
-	// 3. 裁剪选区
-	cropped := capture.CropImage(fullscreen, *region)
+	// 3. 打开标注编辑器（传入全屏截图和选区，仿微信截图风格）
+	selRect := image.Rect(region.X, region.Y, region.X+region.Width, region.Y+region.Height)
+	debugLog("编辑器 selRect: %v", selRect)
+	result := annotate.OpenEditor(fullscreen, selRect)
+	if result == nil || result.Cancelled {
+		return // 用户取消标注
+	}
 
-	// 4. 保存图片
-	savePath, err := store.Save(cropped)
+	// 5. 保存图片（带标注）
+	savePath, err := store.Save(result.Image)
 	if err != nil {
 		notifier.Show("保存失败", err.Error())
 		return
 	}
 
-	// 5. 复制路径到剪贴板
+	// 6. 复制路径到剪贴板
 	if err := clip.SetText(savePath); err != nil {
 		notifier.Show("复制失败", err.Error())
 		return
 	}
 
-	// 6. 显示通知
+	// 7. 显示通知
 	if cfg.Behavior.ShowNotification {
 		notifier.Show("截图完成", savePath)
 	}

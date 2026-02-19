@@ -5,6 +5,7 @@ package capture
 import (
 	"image"
 	"image/draw"
+	"runtime"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -63,6 +64,7 @@ const (
 	WM_LBUTTONDOWN = 0x0201
 	WM_LBUTTONUP   = 0x0202
 	WM_SETCURSOR   = 0x0020
+	WM_ERASEBKGND  = 0x0014
 	WM_MOUSEMOVE   = 0x0200
 	WM_RBUTTONDOWN = 0x0204
 
@@ -345,6 +347,11 @@ func (s *WindowsSelector) SelectRegion(background *image.RGBA) (*Region, error) 
 	selectorMutex.Lock()
 	defer selectorMutex.Unlock()
 
+	// 锁定当前 goroutine 到 OS 线程，确保 Win32 窗口消息循环的线程亲和性
+	// 没有这个，Go 调度器可能把 goroutine 迁移到其他线程，导致窗口收不到消息（"无响应"）
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	s.background = background
 	s.selecting = false
 	s.done = false
@@ -472,13 +479,16 @@ func selectorWndProc(hwnd, msg, wParam, lParam uintptr) uintptr {
 		setCursor.Call(0)
 		return 1 // 返回 TRUE 表示已处理
 
+	case WM_ERASEBKGND:
+		return 1 // 阻止系统擦除背景，避免闪烁
+
 	case WM_PAINT:
 		var ps PAINTSTRUCT
 		hdc, _, _ := beginPaint.Call(hwnd, uintptr(unsafe.Pointer(&ps)))
 
-		// 绘制背景图片（带遮罩）
+		// 绘制背景图片（带遮罩），仅处理脏区域
 		if s.background != nil {
-			drawBackgroundWithOverlay(hdc, s.background, s)
+			drawBackgroundWithOverlay(hdc, s.background, s, ps.RcPaint)
 		}
 
 		endPaint.Call(hwnd, uintptr(unsafe.Pointer(&ps)))
@@ -703,7 +713,7 @@ func cleanupSelectorCache() {
 	brightPixels = nil
 }
 
-func drawBackgroundWithOverlay(hdc uintptr, bg *image.RGBA, s *WindowsSelector) {
+func drawBackgroundWithOverlay(hdc uintptr, bg *image.RGBA, s *WindowsSelector, paintRect RECT) {
 	bounds := bg.Bounds()
 	width := bounds.Dx()
 	height := bounds.Dy()
@@ -746,29 +756,44 @@ func drawBackgroundWithOverlay(hdc uintptr, bg *image.RGBA, s *WindowsSelector) 
 		cachedWidth = width
 		cachedHeight = height
 
-		// 预计算暗色和亮色背景
+		// 预计算暗色和亮色背景（直接访问 Pix 避免 RGBAAt 的边界检查开销）
 		size := width * height * 4
 		darkPixels = make([]byte, size)
 		brightPixels = make([]byte, size)
+		pix := bg.Pix
+		stride := bg.Stride
 		for y := 0; y < height; y++ {
+			srcOff := y * stride
+			dstOff := y * width * 4
 			for x := 0; x < width; x++ {
-				i := (y*width + x) * 4
-				c := bg.RGBAAt(x, y)
-				// 暗色 (50%亮度)
-				darkPixels[i+0] = c.B / 2
-				darkPixels[i+1] = c.G / 2
-				darkPixels[i+2] = c.R / 2
-				darkPixels[i+3] = 255
-				// 亮色 (原始)
-				brightPixels[i+0] = c.B
-				brightPixels[i+1] = c.G
-				brightPixels[i+2] = c.R
-				brightPixels[i+3] = 255
+				si := srcOff + x*4
+				di := dstOff + x*4
+				r, g, b := pix[si], pix[si+1], pix[si+2]
+				// RGBA → BGRA 转换 + 暗色版本 (50%亮度)
+				darkPixels[di+0] = b / 2
+				darkPixels[di+1] = g / 2
+				darkPixels[di+2] = r / 2
+				darkPixels[di+3] = 255
+				// 亮色版本
+				brightPixels[di+0] = b
+				brightPixels[di+1] = g
+				brightPixels[di+2] = r
+				brightPixels[di+3] = 255
 			}
 		}
 	}
 
 	pixels := unsafe.Slice((*byte)(unsafe.Pointer(cachedBits)), width*height*4)
+
+	// 计算绘制区域（限制在图像范围内）
+	px1 := max(0, int(paintRect.Left))
+	py1 := max(0, int(paintRect.Top))
+	px2 := min(width, int(paintRect.Right))
+	py2 := min(height, int(paintRect.Bottom))
+
+	if px1 >= px2 || py1 >= py2 {
+		return
+	}
 
 	// 确定要高亮的区域
 	var highlightRegion *Region
@@ -795,24 +820,30 @@ func drawBackgroundWithOverlay(hdc uintptr, bg *image.RGBA, s *WindowsSelector) 
 	}
 	// 当 hoverRect 为 nil 时，不设置 highlightRegion，显示全屏暗色遮罩
 
-	// 始终先填充暗色背景
-	copy(pixels, darkPixels)
+	// 仅在绘制区域（脏区域）内复制暗色背景，而非全屏拷贝
+	for y := py1; y < py2; y++ {
+		start := (y*width + px1) * 4
+		end := (y*width + px2) * 4
+		copy(pixels[start:end], darkPixels[start:end])
+	}
 
-	// 如果有高亮区域，用亮色覆盖
+	// 如果有高亮区域且与绘制区域相交，用亮色覆盖交集部分
 	if highlightRegion != nil {
-		x1 := max(0, highlightRegion.X)
-		y1 := max(0, highlightRegion.Y)
-		x2 := min(highlightRegion.X+highlightRegion.Width, width)
-		y2 := min(highlightRegion.Y+highlightRegion.Height, height)
+		hx1 := max(px1, max(0, highlightRegion.X))
+		hy1 := max(py1, max(0, highlightRegion.Y))
+		hx2 := min(px2, min(highlightRegion.X+highlightRegion.Width, width))
+		hy2 := min(py2, min(highlightRegion.Y+highlightRegion.Height, height))
 
-		for y := y1; y < y2; y++ {
-			srcStart := (y*width + x1) * 4
-			srcEnd := (y*width + x2) * 4
-			copy(pixels[srcStart:srcEnd], brightPixels[srcStart:srcEnd])
+		if hx1 < hx2 && hy1 < hy2 {
+			for y := hy1; y < hy2; y++ {
+				start := (y*width + hx1) * 4
+				end := (y*width + hx2) * 4
+				copy(pixels[start:end], brightPixels[start:end])
+			}
 		}
 	}
 
-	// 绘制绿色边框（3像素宽）
+	// 绘制绿色边框（3像素宽），裁剪到绘制区域
 	if highlightRegion != nil {
 		x1 := highlightRegion.X
 		y1 := highlightRegion.Y
@@ -824,29 +855,29 @@ func drawBackgroundWithOverlay(hdc uintptr, bg *image.RGBA, s *WindowsSelector) 
 
 		for t := 0; t < borderWidth; t++ {
 			// 上边框
-			if y1+t >= 0 && y1+t < height {
-				for x := max(0, x1); x < min(x2, width); x++ {
+			if y1+t >= py1 && y1+t < py2 {
+				for x := max(px1, max(0, x1)); x < min(px2, min(x2, width)); x++ {
 					i := ((y1+t)*width + x) * 4
 					pixels[i+0], pixels[i+1], pixels[i+2] = borderB, borderG, borderR
 				}
 			}
 			// 下边框
-			if y2-1-t >= 0 && y2-1-t < height {
-				for x := max(0, x1); x < min(x2, width); x++ {
+			if y2-1-t >= py1 && y2-1-t < py2 {
+				for x := max(px1, max(0, x1)); x < min(px2, min(x2, width)); x++ {
 					i := ((y2-1-t)*width + x) * 4
 					pixels[i+0], pixels[i+1], pixels[i+2] = borderB, borderG, borderR
 				}
 			}
 			// 左边框
-			if x1+t >= 0 && x1+t < width {
-				for y := max(0, y1); y < min(y2, height); y++ {
+			if x1+t >= px1 && x1+t < px2 {
+				for y := max(py1, max(0, y1)); y < min(py2, min(y2, height)); y++ {
 					i := (y*width + x1 + t) * 4
 					pixels[i+0], pixels[i+1], pixels[i+2] = borderB, borderG, borderR
 				}
 			}
 			// 右边框
-			if x2-1-t >= 0 && x2-1-t < width {
-				for y := max(0, y1); y < min(y2, height); y++ {
+			if x2-1-t >= px1 && x2-1-t < px2 {
+				for y := max(py1, max(0, y1)); y < min(py2, min(y2, height)); y++ {
 					i := (y*width + x2 - 1 - t) * 4
 					pixels[i+0], pixels[i+1], pixels[i+2] = borderB, borderG, borderR
 				}
@@ -854,11 +885,12 @@ func drawBackgroundWithOverlay(hdc uintptr, bg *image.RGBA, s *WindowsSelector) 
 		}
 	}
 
-	// 绘制自定义十字光标（白色轮廓 + 红色中心，在任何背景下都可见）
+	// 绘制自定义十字光标（很小，无需裁剪）
 	drawCrosshair(pixels, width, height, s.mouseX, s.mouseY)
 
-	// BitBlt 到窗口
-	bitBlt.Call(hdc, 0, 0, uintptr(width), uintptr(height), cachedMemDC, 0, 0, SRCCOPY)
+	// 仅 BitBlt 绘制区域，而非全屏
+	bitBlt.Call(hdc, uintptr(px1), uintptr(py1), uintptr(px2-px1), uintptr(py2-py1),
+		cachedMemDC, uintptr(px1), uintptr(py1), SRCCOPY)
 }
 
 // drawCrosshair 绘制带轮廓的十字光标

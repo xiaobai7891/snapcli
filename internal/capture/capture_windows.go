@@ -135,11 +135,14 @@ func (c *WindowsCapturer) GetFullBounds() Region {
 	width, _, _ := getSystemMetrics.Call(SM_CXVIRTUALSCREEN)
 	height, _, _ := getSystemMetrics.Call(SM_CYVIRTUALSCREEN)
 
+	// GetSystemMetrics 返回 int（32位有符号），但 Go 的 Call() 返回 uintptr（64位无符号）。
+	// 必须先转换为 int32 进行符号扩展，否则负值（如多显示器偏移 -201）
+	// 会变成巨大的正数（4294967095），导致坐标计算错误。
 	return Region{
-		X:      int(x),
-		Y:      int(y),
-		Width:  int(width),
-		Height: int(height),
+		X:      int(int32(x)),
+		Y:      int(int32(y)),
+		Width:  int(int32(width)),
+		Height: int(int32(height)),
 	}
 }
 
